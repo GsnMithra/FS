@@ -7,28 +7,51 @@ import {
     useNavigate,
 } from "react-router-dom";
 import axios from "axios";
+import Login from "./components/Login";
+import CounterContext from "./context/context";
+import Callback from "./components/Callback";
+import Cookies from "js-cookie";
 
-const CounterContext = React.createContext();
 const counterReducer = (state, action) => {
+    if (action.clearData) {
+        return {
+            count: 0,
+            myCount: 0,
+            loggedIn: false,
+            name: "",
+            email: "",
+            picture: "",
+        };
+    }
+
+    if (action.loginState) {
+        return {
+            ...state,
+            name: action.name,
+            email: action.email,
+            picture: action.picture,
+        };
+    }
+
     if (action.counter === "count") {
         switch (action.type) {
             case "SET":
-                return { count: action.count, myCount: state.myCount };
+                return { ...state, count: action.count };
             case "INCREMENT":
-                return { count: state.count + 1, myCount: state.myCount };
+                return { ...state, count: state.count + 1 };
             case "DECREMENT":
-                return { count: state.count - 1, myCount: state.myCount };
+                return { ...state, count: state.count - 1 };
             default:
                 return state;
         }
     } else {
         switch (action.type) {
             case "SET":
-                return { myCount: action.myCount, count: state.count };
+                return { ...state, myCount: action.myCount };
             case "INCREMENT":
-                return { myCount: state.myCount + 1, count: state.count };
+                return { ...state, myCount: state.myCount + 1 };
             case "DECREMENT":
-                return { myCount: state.myCount - 1, count: state.count };
+                return { ...state, myCount: state.myCount - 1 };
             default:
                 return state;
         }
@@ -36,12 +59,35 @@ const counterReducer = (state, action) => {
 };
 
 const Home = () => {
-    const { state } = useContext(CounterContext);
+    const navigate = useNavigate();
+    const { dispatch, state } = useContext(CounterContext);
+
+    useEffect(() => {
+        (async () => {
+            const token = Cookies.get("token");
+            if (!token) navigate("/login");
+            const response = await axios.post(
+                "https://fs-aani.onrender.com/user",
+                {
+                    token: token,
+                },
+            );
+            const { name, email, picture } = response.data.user;
+            dispatch({
+                loginState: true,
+                name: name,
+                email: email,
+                picture: picture,
+            });
+        })();
+    }, []);
+
     return (
         <div>
-            <h1>Counter Value: {state.count}</h1>
-            <h1>MyCounter Value: {state.myCount}</h1>
-            <Link to="/counter">Counter</Link>
+            <img src={state.picture} alt="profile" />
+            <h1>Hello: {state.name}</h1>
+            <h2>Counter Value: {state.count}</h2>
+            <h2>MyCounter Value: {state.myCount}</h2>
         </div>
     );
 };
@@ -52,9 +98,13 @@ const Counter = () => {
 
     const fetchCounter = useCallback(async () => {
         try {
-            const response = await axios.get(
+            const response = await axios.post(
                 "https://fs-aani.onrender.com/api/counter",
+                {
+                    email: state.email,
+                },
             );
+
             dispatch({
                 counter: "count",
                 type: "SET",
@@ -63,7 +113,12 @@ const Counter = () => {
         } catch (err) {
             console.error(err);
         }
-    }, [dispatch]);
+    }, [dispatch, state]);
+
+    useEffect(() => {
+        const token = Cookies.get("token");
+        if (!token) navigate("/login");
+    }, [navigate]);
 
     useEffect(() => {
         fetchCounter();
@@ -73,23 +128,29 @@ const Counter = () => {
         try {
             await axios.post(
                 "https://fs-aani.onrender.com/api/counter/increment",
+                {
+                    email: state.email,
+                },
             );
             dispatch({ counter: "count", type: "INCREMENT" });
         } catch (err) {
             console.error(err);
         }
-    }, [dispatch]);
+    }, [dispatch, state]);
 
     const decrementCounter = useCallback(async () => {
         try {
             await axios.post(
                 "https://fs-aani.onrender.com/api/counter/decrement",
+                {
+                    email: state.email,
+                },
             );
             dispatch({ counter: "count", type: "DECREMENT" });
         } catch (err) {
             console.error(err);
         }
-    }, [dispatch]);
+    }, [dispatch, state]);
 
     return (
         <div>
@@ -109,9 +170,13 @@ const MyCounter = () => {
 
     const fetchCounter = useCallback(async () => {
         try {
-            const response = await axios.get(
+            const response = await axios.post(
                 "https://fs-aani.onrender.com/api/mycounter",
+                {
+                    email: state.email,
+                },
             );
+
             dispatch({
                 counter: "myCount",
                 type: "SET",
@@ -120,7 +185,12 @@ const MyCounter = () => {
         } catch (err) {
             console.error(err);
         }
-    }, [dispatch]);
+    }, []);
+
+    useEffect(() => {
+        const token = Cookies.get("token");
+        if (!token) navigate("/login");
+    }, [navigate]);
 
     useEffect(() => {
         fetchCounter();
@@ -130,23 +200,29 @@ const MyCounter = () => {
         try {
             await axios.post(
                 "https://fs-aani.onrender.com/api/mycounter/increment",
+                {
+                    email: state.email,
+                },
             );
             dispatch({ counter: "myCount", type: "INCREMENT" });
         } catch (err) {
             console.error(err);
         }
-    }, [dispatch]);
+    }, [dispatch, state]);
 
     const decrementCounter = useCallback(async () => {
         try {
             await axios.post(
                 "https://fs-aani.onrender.com/api/mycounter/decrement",
+                {
+                    email: state.email,
+                },
             );
             dispatch({ counter: "myCount", type: "DECREMENT" });
         } catch (err) {
             console.error(err);
         }
-    }, [dispatch]);
+    }, [dispatch, state]);
 
     return (
         <div>
@@ -164,32 +240,61 @@ const App = () => {
     const [state, dispatch] = useReducer(counterReducer, {
         count: 0,
         myCount: 0,
+        loggedIn: false,
+        name: "",
+        email: "",
+        picture: "",
     });
 
     useEffect(() => {
         const fetchInitialValues = async () => {
-            try {
-                const responseCounter = await axios.get(
-                    "https://fs-aani.onrender.com/api/counter",
-                );
-                const responseMyCounter = await axios.get(
-                    "https://fs-aani.onrender.com/api/mycounter",
+            setTimeout(async () => {
+                const token = Cookies.get("token");
+                const response = await axios.post(
+                    "https://fs-aani.onrender.com/user",
+                    {
+                        token,
+                    },
                 );
 
-                dispatch({
-                    counter: "count",
-                    type: "SET",
-                    count: responseCounter.data.count,
-                });
+                const { name, email, picture } = response.data.user;
 
                 dispatch({
-                    counter: "myCount",
-                    type: "SET",
-                    myCount: responseMyCounter.data.myCount,
+                    loginState: true,
+                    name: name,
+                    email: email,
+                    picture: picture,
                 });
-            } catch (e) {
-                console.error(e);
-            }
+
+                try {
+                    const responseCounter = await axios.post(
+                        "https://fs-aani.onrender.com/api/counter",
+                        {
+                            email,
+                        },
+                    );
+                    const responseMyCounter = await axios.post(
+                        "https://fs-aani.onrender.com/api/mycounter",
+                        {
+                            email,
+                        },
+                    );
+
+                    dispatch({
+                        counter: "count",
+                        type: "SET",
+                        count: responseCounter.data.count,
+                    });
+
+                    dispatch({
+                        counter: "myCount",
+                        type: "SET",
+                        myCount: responseMyCounter.data.myCount,
+                    });
+                } catch (e) {
+                    console.error(e);
+                }
+            }, 500);
         };
 
         fetchInitialValues();
@@ -210,13 +315,28 @@ const App = () => {
                             <li>
                                 <Link to="/mycounter">MyCounter</Link>
                             </li>
+                            <li>
+                                <Link
+                                    to="/login"
+                                    onClick={() => {
+                                        Cookies.remove("token");
+                                        dispatch({ clearData: true });
+                                    }}
+                                >
+                                    Logout
+                                </Link>
+                            </li>
                         </ul>
                     </nav>
 
                     <Routes>
+                        {/* <Route element={<PrivateRoutes />}>
+                        </Route> */}
                         <Route path="/" element={<Home />} />
                         <Route path="/counter" element={<Counter />} />
                         <Route path="/mycounter" element={<MyCounter />} />
+                        <Route path="/callback" element={<Callback />} />
+                        <Route path="/login" element={<Login />} />
                     </Routes>
                 </div>
             </Router>
